@@ -71,29 +71,27 @@ type envResolver struct {
 
 func (r *envResolver) resolve(ctx context.Context, containerName string, env atev1alpha1.EnvVar) (*ateletpb.EnvEntry, error) {
 	envID := fmt.Sprintf("container %q env %q", containerName, env.Name)
-	if env.Value != "" && env.ValueFrom != nil {
-		return nil, status.Errorf(codes.FailedPrecondition, "%s sets both value and valueFrom", envID)
-	}
 
-	if env.ValueFrom == nil {
+	switch {
+	case env.Value != nil:
 		return &ateletpb.EnvEntry{
 			Name:  env.Name,
-			Value: env.Value,
+			Value: *env.Value,
+		}, nil
+	case env.ValueFrom != nil:
+		value, include, err := r.resolveValueFrom(ctx, envID, env.ValueFrom)
+		if err != nil {
+			return nil, err
+		}
+		if !include {
+			return nil, nil
+		}
+		return &ateletpb.EnvEntry{
+			Name:  env.Name,
+			Value: value,
 		}, nil
 	}
-
-	value, include, err := r.resolveValueFrom(ctx, envID, env.ValueFrom)
-	if err != nil {
-		return nil, err
-	}
-	if !include {
-		return nil, nil
-	}
-
-	return &ateletpb.EnvEntry{
-		Name:  env.Name,
-		Value: value,
-	}, nil
+	return nil, status.Errorf(codes.FailedPrecondition, "%s has unknown value source", envID)
 }
 
 func (r *envResolver) resolveValueFrom(ctx context.Context, envID string, valueFrom *atev1alpha1.EnvVarSource) (string, bool, error) {
@@ -104,12 +102,6 @@ func (r *envResolver) resolveValueFrom(ctx context.Context, envID string, valueF
 }
 
 func (r *envResolver) resolveSecretKeyRef(ctx context.Context, envID string, ref *atev1alpha1.SecretKeySelector) (string, bool, error) {
-	if ref.Name == "" {
-		return "", false, status.Errorf(codes.FailedPrecondition, "%s secretKeyRef.name is required", envID)
-	}
-	if ref.Key == "" {
-		return "", false, status.Errorf(codes.FailedPrecondition, "%s secretKeyRef.key is required", envID)
-	}
 	if r.kubeClient == nil {
 		return "", false, status.Errorf(codes.FailedPrecondition, "%s cannot resolve secretKeyRef because Kubernetes client is unavailable", envID)
 	}

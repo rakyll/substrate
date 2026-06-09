@@ -48,6 +48,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
@@ -375,6 +376,9 @@ func createTemplateWithContainers(t *testing.T, tc *testContext, ns string, cont
 				},
 			},
 			PauseImage: "pause@sha256:abc",
+			SnapshotsConfig: atev1alpha1.SnapshotsConfig{
+				Location: "gs://fake-fake-fake",
+			},
 			Containers: containers,
 			WorkerPoolRef: corev1.ObjectReference{
 				Namespace: ns,
@@ -897,7 +901,7 @@ func TestResumeActorResolvesValueFromEnv(t *testing.T) {
 			Env: []atev1alpha1.EnvVar{
 				{
 					Name:  "LITERAL",
-					Value: "plain",
+					Value: ptr.To("plain"),
 				},
 				{
 					Name: "ANTHROPIC_API_KEY",
